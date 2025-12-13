@@ -1,40 +1,46 @@
-name: Monitor de Latencia Global
+name: Monitor Latencia (Docker Version)
 
 on:
   schedule:
-    # Ejecutar cada 6 horas
+    # Ejecutar cada 6 horas (puedes cambiarlo)
     - cron: "0 */6 * * *"
-  workflow_dispatch: # Permite ejecutarlo manualmente desde la pestaña Actions
+  workflow_dispatch: # Botón para ejecutar manual desde la web
 
+# Damos permiso al bot para escribir en el repositorio
 permissions:
   contents: write
 
 jobs:
-  build:
+  run-docker-bot:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Descargar tu código del repositorio
       - name: Checkout del código
         uses: actions/checkout@v3
 
-      - name: Configurar Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.9"
+      # 2. Construir la imagen Docker (igual que hiciste en tu PC)
+      - name: Construir Imagen Docker
+        run: docker build -t latency-bot .
 
-      - name: Instalar dependencias
+      # 3. Ejecutar el contenedor
+      # El truco aquí es "-v ${{ github.workspace }}:/app"
+      # Esto conecta la carpeta del servidor de GitHub con la carpeta /app del contenedor
+      # Así, cuando el script guarde la imagen, aparecerá fuera del contenedor.
+      - name: Ejecutar Monitor de Latencia
         run: |
-          pip install -r requirements.txt
+          docker run --rm -v ${{ github.workspace }}:/app latency-bot
 
-      - name: Ejecutar script de monitorización
-        # Usamos sudo porque ping a veces requiere permisos de root en Linux
-        run: sudo python monitor.py
-
-      - name: Guardar y subir cambios
+      # 4. Detectar cambios y hacer Commit
+      - name: Guardar cambios (Commit & Push)
         run: |
-          git config --global user.name "Latency Bot"
-          git config --global user.email "bot@github.com"
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "actions@github.com"
+
+          # Verificamos si la imagen cambió
           git add latency_map.png
-          # Solo hace commit si hubo cambios (si la imagen cambió)
-          git commit -m "Update: Latency Map $(date)" || exit 0
+
+          # Hacemos commit solo si hay cambios, si no, no falla
+          git commit -m "📊 Update: Latency Map [Automated]" || echo "No changes to commit"
+
           git push
