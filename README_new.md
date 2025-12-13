@@ -1,4 +1,4 @@
-# Global Latency Monitor
+# 🌍 Global Latency Monitor
 
 Automated global latency monitoring system that measures HTTP response times from AWS servers across multiple regions using GitHub Actions.
 
@@ -10,7 +10,7 @@ This repository runs a Python monitoring script every 6 hours to measure network
 - US West (Oregon)
 - EU Central (Frankfurt)
 - Asia Pacific (Tokyo)
-- South America (Sao Paulo)
+- South America (São Paulo)
 - Australia (Sydney)
 
 ## Features
