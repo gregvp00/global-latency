@@ -15,7 +15,7 @@ This repository runs a Python monitoring script every 6 hours to measure network
 
 ## Features
 
-- **Automated Monitoring**: Runs every 6 hours via GitHub Actions
+- **Automated Monitoring**: Runs every 24 hours via GitHub Actions
 - **Visual Reports**: Generates geo-mapped latency visualization
 - **Dynamic Commit Strategy**: Adjusts commit frequency based on network stability
 - **Docker Support**: Containerized Python environment for consistency
