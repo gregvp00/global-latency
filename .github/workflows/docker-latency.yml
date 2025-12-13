@@ -31,15 +31,21 @@ jobs:
 
       - name: Ejecutar Monitor de Latencia
         run: |
-          # Esto generará 'latency_map.png' Y 'commit_strategy.sh'
+          # Genera los archivos como root (dentro de Docker)
           docker run --rm -v ${{ github.workspace }}:/app latency-bot
+
+          # ARREGLO MÁGICO:
+          # Usamos sudo para cambiar el dueño de los archivos generados
+          # de 'root' a '$USER' (el usuario actual de GitHub Actions)
+          sudo chown $USER:$USER commit_strategy.sh latency_map.png
+
+          # Si existe el log, también lo recuperamos (el || true evita errores si no existe aún)
+          sudo chown $USER:$USER connection_log.txt 2>/dev/null || true
 
       - name: Ejecutar Estrategia de Commits Dinámica
         run: |
-          # Damos permisos de ejecución al script generado por Python
+          # Ahora que los archivos son nuestros, ya no dará error de permisos
           chmod +x commit_strategy.sh
-
-          # Ejecutamos el script que contiene los git add/commit/push
           ./commit_strategy.sh
 
       # 4. Detectar cambios y hacer Commit
