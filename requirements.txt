@@ -1,4 +1,4 @@
-ping3
+requests
 pandas
 geopandas
 matplotlib

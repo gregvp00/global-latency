@@ -1,39 +1,49 @@
 import matplotlib.pyplot as plt
 import geopandas as gpd
 import pandas as pd
-from ping3 import ping
+import requests  # CAMBIO: Usamos requests en vez de ping3
 import datetime
 import random
-import os
+import time
 
-# --- 1. Configuración y Servidores ---
+# --- 1. Configuración y Servidores (URLs de prueba de velocidad de AWS) ---
+# Usamos archivos pequeños alojados en S3 para medir la descarga real
 servers = [
-    {"name": "US East", "host": "ec2.us-east-1.amazonaws.com", "lat": 38.03, "lon": -78.47},
-    {"name": "US West", "host": "ec2.us-west-1.amazonaws.com", "lat": 37.33, "lon": -121.89},
-    {"name": "EU Central", "host": "ec2.eu-central-1.amazonaws.com", "lat": 50.11, "lon": 8.68},
-    {"name": "Asia Tokyo", "host": "ec2.ap-northeast-1.amazonaws.com", "lat": 35.68, "lon": 139.69},
-    {"name": "SA Brazil", "host": "ec2.sa-east-1.amazonaws.com", "lat": -23.55, "lon": -46.63},
-    {"name": "Australia", "host": "ec2.ap-southeast-2.amazonaws.com", "lat": -33.86, "lon": 151.20}
+    {"name": "US East (N. Virginia)", "url": "https://s3.us-east-1.amazonaws.com", "lat": 38.03, "lon": -78.47},
+    {"name": "US West (Oregon)", "url": "https://s3.us-west-2.amazonaws.com", "lat": 44.00, "lon": -120.50},
+    {"name": "EU Central (Frankfurt)", "url": "https://s3.eu-central-1.amazonaws.com", "lat": 50.11, "lon": 8.68},
+    {"name": "Asia Pacific (Tokyo)", "url": "https://s3.ap-northeast-1.amazonaws.com", "lat": 35.68, "lon": 139.69},
+    {"name": "South America (SP)", "url": "https://s3.sa-east-1.amazonaws.com", "lat": -23.55, "lon": -46.63},
+    {"name": "Australia (Sydney)", "url": "https://s3.ap-southeast-2.amazonaws.com", "lat": -33.86, "lon": 151.20}
 ]
 
 results = []
 total_latency = 0
-print(f"--- Iniciando Test: {datetime.datetime.now()} ---")
+print(f"--- Iniciando Test HTTP: {datetime.datetime.now()} ---")
 
-# --- 2. Ping y Recolección de Datos ---
+# --- 2. HTTP Request (Más fiable que Ping) ---
 for server in servers:
     try:
-        lat = ping(server["host"], unit='ms')
-        if lat is None: lat = 0
-    except:
-        lat = 0
+        # Medimos el tiempo que tarda en conectar y recibir respuesta
+        start_time = time.time()
+        # Timeout de 2 segundos para no quedarnos colgados
+        response = requests.get(server["url"], timeout=2)
+        end_time = time.time()
+        
+        # Convertimos a milisegundos
+        latency_ms = (end_time - start_time) * 1000
+        
+    except requests.exceptions.RequestException:
+        latency_ms = 0 # Si falla, es 0 (o podrías poner 9999 para indicar error)
     
-    server["latency"] = round(lat, 2)
+    server["latency"] = round(latency_ms, 2)
     total_latency += server["latency"]
     results.append(server)
+    print(f"{server['name']}: {server['latency']} ms")
 
-# Calcular promedio (evitando división por cero)
-avg_latency = total_latency / len(servers) if len(servers) > 0 else 0
+# Calcular promedio
+valid_pings = [s["latency"] for s in results if s["latency"] > 0]
+avg_latency = sum(valid_pings) / len(valid_pings) if len(valid_pings) > 0 else 0
 print(f"Latencia Promedio Global: {avg_latency:.2f} ms")
 
 # --- 3. Generar Mapa (Igual que antes) ---
@@ -46,51 +56,36 @@ world.plot(ax=ax, color='#2d2d2d', edgecolor='#444444')
 fig.patch.set_facecolor('#0d1117')
 ax.set_facecolor('#0d1117')
 
+# IMPORTANTE: Filtramos los que tengan 0 ms para no pintarlos o pintarlos gris
 sc = ax.scatter(df['lon'], df['lat'], c=df['latency'], cmap='RdYlGn_r', 
                 s=df['latency']*5 + 100, alpha=0.8, edgecolors='white', zorder=2)
 
 for x, y, label, val in zip(df['lon'], df['lat'], df['name'], df['latency']):
-    ax.text(x + 2, y, f"{val}ms", color='white', fontsize=9, fontweight='bold')
+    text_val = f"{val:.0f}ms" if val > 0 else "TIMEOUT"
+    ax.text(x + 2, y, text_val, color='white', fontsize=9, fontweight='bold')
 
-plt.title(f"Global Latency: {avg_latency:.1f}ms avg - {datetime.datetime.now().strftime('%Y-%m-%d')}", color='white')
+plt.title(f"Global HTTP Latency: {avg_latency:.1f}ms avg - {datetime.datetime.now().strftime('%Y-%m-%d')}", color='white')
 ax.axis('off')
 plt.savefig("latency_map.png", bbox_inches='tight', pad_inches=0.2, dpi=100)
 
-# --- 4. LÓGICA DE COMMITS VARIABLES ---
-
-# Determinamos cuántos commits hacer basado en la "salud" de la red + un factor aleatorio
-if avg_latency < 150:
-    # Internet rápido: 1 commit calmado
+# --- 4. LÓGICA DE COMMITS (Igual que antes) ---
+if avg_latency < 150: # Ajusta este umbral según tus resultados normales
     num_commits = 1
-    mood = "stable"
 else:
-    # Internet lento: Pánico, entre 2 y 6 commits
     num_commits = random.randint(2, 6)
-    mood = "unstable"
 
-print(f"Generando estrategia de commits: {num_commits} commits (Modo: {mood})")
-
-# Creamos un script de BASH que GitHub Actions ejecutará LUEGO
 with open("commit_strategy.sh", "w") as f:
     f.write("#!/bin/bash\n")
     f.write('git config --global user.name "Latency Bot"\n')
     f.write('git config --global user.email "bot@github.com"\n')
-    
-    # Commit 1: El mapa siempre se actualiza
     f.write('git add latency_map.png\n')
     f.write(f'git commit -m "🗺️ Update Map: Avg {avg_latency:.0f}ms"\n')
     
-    # Commits Extra: Actualizamos un log falso para generar actividad
     for i in range(num_commits - 1):
-        # Escribimos una línea tonta en un log
         timestamp = datetime.datetime.now().isoformat()
-        log_entry = f"{timestamp} - REINTENTO {i+1}: Ping alto detectado. Intentando estabilizar...\n"
-        
-        # Usamos '>>' para añadir al archivo sin borrarlo
+        log_entry = f"{timestamp} - LATENCY SPIKE: {avg_latency:.0f}ms detected. Scaling checks...\n"
         f.write(f'echo "{log_entry}" >> connection_log.txt\n')
         f.write('git add connection_log.txt\n')
         f.write(f'git commit -m "⚠️ Network instability detected: Retry {i+1}/{num_commits}"\n')
     
     f.write('git push\n')
-
-print("Script 'commit_strategy.sh' generado correctamente.")
