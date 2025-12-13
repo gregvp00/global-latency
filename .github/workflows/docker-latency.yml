@@ -2,9 +2,8 @@ name: Monitor Latencia (Docker Version)
 
 on:
   schedule:
-    # Ejecutar cada 6 horas (puedes cambiarlo)
-    - cron: "0 */6 * * *"
-  workflow_dispatch: # Botón para ejecutar manual desde la web
+    - cron: "0 0 * * *"
+  workflow_dispatch:
 
 # Damos permiso al bot para escribir en el repositorio
 permissions:
